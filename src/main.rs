@@ -1,11 +1,10 @@
-use permuta_rust::Perm;
+use permuta_rust::{Perm, Pattern};
 use std::time::Instant;
 
 fn main() {
-    let n = 5;
-    let m = 11;
+    let n = 3;
+    let m = 12;
 
-    let start = Instant::now();
 
     /*
     for perm in Perm::of_length(n) {
@@ -16,13 +15,14 @@ fn main() {
         }
     }
     */
-    let perm = Perm::of_length(n).next().unwrap();
-    println!("Perm: {}", perm);
+    let patt= Pattern::of_length(n).next().unwrap();
+    println!("Pattern: {}", patt);
     for j in n..=m {
-        let (even_count, odd_count) = perm.count_odd_even_occurrences(j);
+        let start = Instant::now();
+        let (even_count, odd_count) = patt.count_odd_even_occurrences(j);
         println!("j = {}: {} even, {} odd", j, even_count, odd_count);
+        let duration = start.elapsed();
+        println!("Time elapsed: {:?}", duration);
     }
 
-    let duration = start.elapsed();
-    println!("Time elapsed: {:?}", duration);
 }

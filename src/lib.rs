@@ -11,11 +11,15 @@ pub struct PattDetails {
 }
 
 #[derive(Debug, Clone)]
+pub struct Pattern {
+    pub perm: Perm,
+    pub details: Vec<PattDetails>,
+}
+
+#[derive(Debug, Clone)]
 pub struct Perm {
     pub n: u8,
     pub data: Vec<u8>,
-    
-    pattern_details: Option<Vec<PattDetails>>,
 }
 
 
@@ -35,9 +39,7 @@ impl fmt::Display for Perm {
 impl Perm {
     pub fn new(data: Vec<u8>) -> Self {
         let n = data.len() as u8;
-        let mut res = Perm { n, data, pattern_details: None };
-        res.set_pattern_details();
-        res
+        Perm {n, data}
     }
     /// Convert an index to the nth lexicographic permutation of [0, 1, ..., n-1]
     fn unrank_permutation(mut index: usize, n: u8) -> Perm {
@@ -63,7 +65,48 @@ impl Perm {
     pub fn of_length(n: u8) -> impl Iterator<Item = Perm> {
         (0..n).permutations(n as usize).map(Perm::new)
     }
-    pub fn left_floor_and_ceil(&self) -> Vec<(Option<u8>, Option<u8>)> {
+
+    pub fn occurences_of(&self, patt: &Pattern) -> Vec<Vec<u8>> {
+        patt.occurrences_in(self)
+    }
+
+
+    pub fn count_occurrences_of(&self, patt: &Pattern) -> usize {
+        patt.count_occurrences_in(self)
+    }
+
+}
+
+impl Pattern {
+    pub fn new(perm: Perm) -> Self {
+        let details = perm.data 
+            .iter()
+            .copied()
+            .zip(Pattern::left_floor_and_ceil(&perm))
+            .map(|(val, (floor, ceiling))| {
+                let left_diff = match floor {
+                    Some(f) => val - perm.data[f as usize],
+                    None => val,
+                };
+                let right_diff = match ceiling {
+                    Some(c) => perm.data[c as usize] - val,
+                    None => perm.n - val,
+                };
+            
+                PattDetails {
+                    left_floor: floor,
+                    left_ceil: ceiling,
+                    upper_bound: right_diff,
+                    lower_bound: left_diff,
+                }
+            })
+            .collect();
+        Pattern {
+            perm,
+            details
+        }
+    }
+    fn left_floor_and_ceil(perm: &Perm) -> Vec<(Option<u8>, Option<u8>)> {
         // For each element, return the pair of indices of (largest less, smalllest
         // greater) to the left, if they exist. If not, -1 is used instead.
         let mut deq: VecDeque<(u8, u8)> = VecDeque::new(); // (value, index)
@@ -71,7 +114,7 @@ impl Perm {
 
         let mut smallest: u8 = 0;
         let mut biggest: u8 = 0;
-        for (idx, &val) in self.data.iter().enumerate() {
+        for (idx, &val) in perm.data.iter().enumerate() {
             if idx == 0 {
                 deq.push_back((val, idx as u8));
                 smallest = val;
@@ -116,68 +159,30 @@ impl Perm {
                 deq.push_front((val, idx as u8));
             }
         }
-
         results
     }
 
-    pub fn set_pattern_details(&mut self) {
-        if self.pattern_details.is_none() {
-            self.pattern_details = Some(self.data 
-            .iter()
-            .copied()
-            .zip(self.left_floor_and_ceil())
-            .map(|(val, (floor, ceiling))| {
-                let left_diff = match floor {
-                    Some(f) => val - self.data[f as usize],
-                    None => val,
-                };
-                let right_diff = match ceiling {
-                    Some(c) => self.data[c as usize] - val,
-                    None => self.n - val,
-                };
-
-                PattDetails {
-                    left_floor: floor,
-                    left_ceil: ceiling,
-                    upper_bound: right_diff,
-                    lower_bound: left_diff,
-                }
-            })
-            .collect());
-        }
+    /// Generate all patterns of length `n` from the given permutation.
+    pub fn of_length(n: u8) -> impl Iterator<Item = Pattern> {
+        Perm::of_length(n)
+            .map(Pattern::new)
     }
 
-    pub fn get_pattern_details(&self) -> &Vec<PattDetails> {
-        self.pattern_details.as_ref().expect("Pattern details not set")
+    /// Generate all patterns of length `n` from the given permutation in parallel.
+    pub fn par_of_length(n: u8) -> impl ParallelIterator<Item = Pattern> {
+        Perm::par_of_length(n)
+            .map(Pattern::new)
     }
 
     /// Finds all index tuples where `self` occurs in `patt`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use permuta_rust::Perm;
-    /// let perm = Perm::new(vec![2, 0, 1]);
-    /// let pattern = Perm::new(vec![5, 3, 0, 4, 2, 1]);
-    /// let occurrences = perm.occurrences_in(&pattern);
-    /// assert_eq!(occurrences, vec![
-    ///     vec![0, 1, 3],
-    ///     vec![0, 2, 3],
-    ///     vec![0, 2, 4],
-    ///     vec![0, 2, 5],
-    ///     vec![1, 2, 4],
-    ///     vec![1, 2, 5],
-    /// ]);
-    /// ```
-    pub fn occurrences_in(&self, patt: &Perm) -> Vec<Vec<u8>> {
-        let n = self.n;
-        let m = patt.n;
-        let pattern = patt.data.as_slice();
+    pub fn occurrences_in(&self, perm: &Perm) -> Vec<Vec<u8>> {
+        let n = self.perm.n;
+        let m = perm.n;
+        let perm_data= perm.data.as_slice();
 
         let mut results = Vec::new();
 
         if n == 0 {
-            results.push(Vec::new());
             return results;
         }
 
@@ -186,7 +191,7 @@ impl Perm {
         }
 
         // Use precomputed pattern details (floors, ceilings, precomputed diffs)
-        let pattern_details = self.get_pattern_details(); // Returns Vec<PattDetails>
+        let pattern_details = &self.details;// Returns Vec<PattDetails>
 
         // Preallocate the occurrence vector
         let mut occ_indices: Vec<u8>= vec![0; n as usize];
@@ -243,17 +248,15 @@ impl Perm {
         }
 
         // Start the recursive search
-        occurrences(0, 0, m, n, pattern_details, pattern, &mut occ_indices, &mut results);
+        occurrences(0, 0, m, n, pattern_details, perm_data, &mut occ_indices, &mut results);
 
         results
     }
-    pub fn occurences_of(&self, patt: &Perm) -> Vec<Vec<u8>> {
-        patt.occurrences_in(self)
-    }
-    pub fn count_occurrences_in(&self, patt: &Perm) -> usize {
-        let n = self.n;
-        let m = patt.n;
-        let pattern = patt.data.as_slice();
+
+    pub fn count_occurrences_in(&self, perm: &Perm) -> usize {
+        let n = self.perm.n;
+        let m = perm.n;
+        let perm_data = perm.data.as_slice();
 
         let mut res: usize = 0;
 
@@ -266,7 +269,7 @@ impl Perm {
         }
 
         // Use precomputed pattern details (floors, ceilings, precomputed diffs)
-        let pattern_details = self.get_pattern_details(); // Returns Vec<PattDetails>
+        let pattern_details = &self.details; // Returns Vec<PattDetails>
 
         // Preallocate the occurrence vector
         let mut occ_indices: Vec<u8>= vec![0; n as usize];
@@ -323,13 +326,10 @@ impl Perm {
         }
 
         // Start the recursive search
-        occurrences(0, 0, m, n, pattern_details, pattern, &mut occ_indices, &mut res);
+        occurrences(0, 0, m, n, pattern_details, perm_data, &mut occ_indices, &mut res);
         res
     }
 
-    pub fn count_occurrences_of(&self, patt: &Perm) -> usize {
-        patt.count_occurrences_in(self)
-    }
     /// Counts the number of permutations of length n which have odd many
     /// occurrences of `self` as a pattern and those with even many occurrences.
     /// 
@@ -353,15 +353,26 @@ impl Perm {
     }
 }
 
+impl fmt::Display for Pattern{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let data_str = self.perm.data
+            .iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        write!(f, "Pattern (n = {}): [{}]", self.perm.n, data_str)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_occurrences_in() {
-        let perm = Perm::new(vec![2, 0, 1]);
-        let pattern = Perm::new(vec![5, 3, 0, 4, 2, 1]);
-        let occurrences = perm.occurrences_in(&pattern);
+        let pattern= Pattern::new(Perm::new(vec![2, 0, 1]));
+        let perm= Perm::new(vec![5, 3, 0, 4, 2, 1]);
+        let occurrences = pattern.occurrences_in(&perm);
         assert_eq!(occurrences, vec![
             vec![0, 1, 3],
             vec![0, 2, 3],
