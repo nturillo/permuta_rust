@@ -39,6 +39,27 @@ impl Perm {
         res.set_pattern_details();
         res
     }
+    /// Convert an index to the nth lexicographic permutation of [0, 1, ..., n-1]
+    fn unrank_permutation(mut index: usize, n: usize) -> Perm {
+        let mut elements: Vec<usize> = (0..n).collect();
+        let mut data= Vec::with_capacity(n);
+
+        for i in (1..=n).rev() {
+            let factorial = (1..i).product::<usize>();
+            let pos = index / factorial;
+            index %= factorial;
+
+            data.push(elements.remove(pos));
+        }
+
+        Perm::new(data)
+    }
+    pub fn par_of_length(n: usize) -> impl ParallelIterator<Item = Perm> {
+        let total = (1..=n).product::<usize>();
+        (0..total)
+            .into_par_iter()
+            .map(move |i| Perm::unrank_permutation(i, n))
+    }
     pub fn of_length(n: usize) -> impl Iterator<Item = Perm> {
         (0..n).permutations(n).map(Perm::new)
     }
@@ -322,12 +343,11 @@ impl Perm {
     /// assert_eq!(odd_count, 40);
     /// ```
     pub fn count_odd_even_occurrences(&self, n: usize) -> (usize, usize) {
-        let perms: Vec<_> = Perm::of_length(n).collect();
-        let even_count = perms
-            .par_iter()
+        let even_count = Perm::par_of_length(n)
             .filter(|perm| self.count_occurrences_in(perm) % 2 == 0)
             .count();
-        let odd_count = perms.len() - even_count;
+        let total = (1..=n).product::<usize>();
+        let odd_count = total - even_count;
 
         (even_count, odd_count)
     }
