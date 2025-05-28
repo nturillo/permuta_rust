@@ -6,3 +6,6 @@ edition = "2024"
 [dependencies]
 itertools = "0.14"
 rayon = "1.10.0"
+
+[profile.release]
+debug = true

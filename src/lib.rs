@@ -3,7 +3,7 @@ use itertools::Itertools;
 use std::collections::VecDeque;
 
 #[derive(Debug, Clone)]
-struct PattDetails {
+pub struct PattDetails {
     left_floor: Option<usize>,
     left_ceil: Option<usize>,
     upper_bound: usize,
@@ -40,7 +40,7 @@ impl Perm {
         res
     }
     pub fn of_length(n: usize) -> impl Iterator<Item = Perm> {
-        (0..n).permutations(n).map(|p| Perm::new(p))
+        (0..n).permutations(n).map(Perm::new)
     }
     pub fn left_floor_and_ceil(&self) -> Vec<(Option<usize>, Option<usize>)> {
         // For each element, return the pair of indices of (largest less, smalllest
@@ -222,7 +222,7 @@ impl Perm {
         }
 
         // Start the recursive search
-        occurrences(0, 0, m, n, &pattern_details, pattern, &mut occ_indices, &mut results);
+        occurrences(0, 0, m, n, pattern_details, pattern, &mut occ_indices, &mut results);
 
         results
     }
@@ -230,8 +230,82 @@ impl Perm {
         patt.occurrences_in(self)
     }
     pub fn count_occurrences_in(&self, patt: &Perm) -> usize {
-        self.occurrences_in(patt).len()
+        let n = self.n;
+        let m = patt.n;
+        let pattern = patt.data.as_slice();
+
+        let mut res: usize = 0;
+
+        if n == 0 {
+            return res;
+        }
+
+        if n > m {
+            return res;
+        }
+
+        // Use precomputed pattern details (floors, ceilings, precomputed diffs)
+        let pattern_details = self.get_pattern_details(); // Returns Vec<PattDetails>
+
+        // Preallocate the occurrence vector
+        let mut occ_indices: Vec<usize>= vec![0; n];
+
+        // Each stack item is (i: pattern index, k: self occ position)
+        fn occurrences(mut i: usize, k: usize, m: usize, n: usize, 
+            pattern_details: &Vec<PattDetails>, pattern: &[usize], occ_indices: &mut Vec<usize>,
+            res: &mut usize) {
+
+            let mut elements_remaining = m - i;
+            let elements_needed = n - k;
+
+            if elements_remaining < elements_needed {
+                return; // Not enough elements left to fill the pattern
+            }
+
+            let PattDetails {
+                left_floor,
+                left_ceil,
+                lower_bound,
+                upper_bound,
+            } = pattern_details[k];
+
+            // Compute bounds for this level
+            let lo = match left_floor {
+                Some(lfi) => pattern[occ_indices[lfi]] + lower_bound,
+                None => lower_bound,
+            };
+
+            let hi = match left_ceil {
+                Some(lci) => pattern[occ_indices[lci]] - upper_bound,
+                None => m - upper_bound,
+            };
+
+            // Scan forward from i
+            loop {
+                if elements_remaining < elements_needed {
+                    return;
+                }
+
+                let val = pattern[i];
+                if lo <= val && val <= hi {
+                    occ_indices[k] = i;
+
+                    if k == n - 1 {
+                        *res += 1; // Only clone when full match is found
+                    } else {
+                        occurrences(i+1, k+1, m, n, pattern_details, pattern, occ_indices, res);
+                    }
+                }
+                i += 1;
+                elements_remaining -= 1;
+            }
+        }
+
+        // Start the recursive search
+        occurrences(0, 0, m, n, pattern_details, pattern, &mut occ_indices, &mut res);
+        res
     }
+
     pub fn count_occurrences_of(&self, patt: &Perm) -> usize {
         patt.count_occurrences_in(self)
     }
