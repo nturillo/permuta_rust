@@ -4,16 +4,16 @@ use std::collections::VecDeque;
 
 #[derive(Debug, Clone)]
 pub struct PattDetails {
-    left_floor: Option<usize>,
-    left_ceil: Option<usize>,
-    upper_bound: usize,
-    lower_bound: usize,
+    left_floor: Option<u8>,
+    left_ceil: Option<u8>,
+    upper_bound: u8,
+    lower_bound: u8,
 }
 
 #[derive(Debug, Clone)]
 pub struct Perm {
-    pub n: usize,
-    pub data: Vec<usize>,
+    pub n: u8,
+    pub data: Vec<u8>,
     
     pattern_details: Option<Vec<PattDetails>>,
 }
@@ -33,18 +33,18 @@ impl fmt::Display for Perm {
 }
 
 impl Perm {
-    pub fn new(data: Vec<usize>) -> Self {
-        let n = data.len();
+    pub fn new(data: Vec<u8>) -> Self {
+        let n = data.len() as u8;
         let mut res = Perm { n, data, pattern_details: None };
         res.set_pattern_details();
         res
     }
     /// Convert an index to the nth lexicographic permutation of [0, 1, ..., n-1]
-    fn unrank_permutation(mut index: usize, n: usize) -> Perm {
-        let mut elements: Vec<usize> = (0..n).collect();
-        let mut data= Vec::with_capacity(n);
+    fn unrank_permutation(mut index: usize, n: u8) -> Perm {
+        let mut elements: Vec<u8> = (0..n).collect();
+        let mut data= Vec::with_capacity(n as usize);
 
-        for i in (1..=n).rev() {
+        for i in (1..=(n as usize)).rev() {
             let factorial = (1..i).product::<usize>();
             let pos = index / factorial;
             index %= factorial;
@@ -54,26 +54,26 @@ impl Perm {
 
         Perm::new(data)
     }
-    pub fn par_of_length(n: usize) -> impl ParallelIterator<Item = Perm> {
-        let total = (1..=n).product::<usize>();
+    pub fn par_of_length(n: u8) -> impl ParallelIterator<Item = Perm> {
+        let total = (1..=(n as usize)).product::<usize>();
         (0..total)
             .into_par_iter()
             .map(move |i| Perm::unrank_permutation(i, n))
     }
-    pub fn of_length(n: usize) -> impl Iterator<Item = Perm> {
-        (0..n).permutations(n).map(Perm::new)
+    pub fn of_length(n: u8) -> impl Iterator<Item = Perm> {
+        (0..n).permutations(n as usize).map(Perm::new)
     }
-    pub fn left_floor_and_ceil(&self) -> Vec<(Option<usize>, Option<usize>)> {
+    pub fn left_floor_and_ceil(&self) -> Vec<(Option<u8>, Option<u8>)> {
         // For each element, return the pair of indices of (largest less, smalllest
         // greater) to the left, if they exist. If not, -1 is used instead.
-        let mut deq: VecDeque<(usize, usize)> = VecDeque::new(); // (value, index)
+        let mut deq: VecDeque<(u8, u8)> = VecDeque::new(); // (value, index)
         let mut results = Vec::new();
 
-        let mut smallest: usize = 0;
-        let mut biggest: usize = 0;
+        let mut smallest: u8 = 0;
+        let mut biggest: u8 = 0;
         for (idx, &val) in self.data.iter().enumerate() {
             if idx == 0 {
-                deq.push_back((val, idx));
+                deq.push_back((val, idx as u8));
                 smallest = val;
                 biggest = val;
                 results.push((None, None));
@@ -88,7 +88,7 @@ impl Perm {
                     }
                 }
                 results.push((None, Some(deq.front().unwrap().1)));
-                deq.push_front((val, idx));
+                deq.push_front((val, idx as u8));
                 smallest = val;
             } else if val > biggest {
                 // Rotate until biggest value is at back
@@ -101,7 +101,7 @@ impl Perm {
                     }
                 }
                 results.push((Some(deq.back().unwrap().1), None));
-                deq.push_back((val, idx));
+                deq.push_back((val, idx as u8));
                 biggest = val;
             } else {
                 while !(deq.back().unwrap().0 <= val && val <= deq.front().unwrap().0) {
@@ -113,7 +113,7 @@ impl Perm {
                     Some(deq.back().unwrap().1),
                     Some(deq.front().unwrap().1),
                 ));
-                deq.push_front((val, idx));
+                deq.push_front((val, idx as u8));
             }
         }
 
@@ -128,11 +128,11 @@ impl Perm {
             .zip(self.left_floor_and_ceil())
             .map(|(val, (floor, ceiling))| {
                 let left_diff = match floor {
-                    Some(f) => val - self.data[f],
+                    Some(f) => val - self.data[f as usize],
                     None => val,
                 };
                 let right_diff = match ceiling {
-                    Some(c) => self.data[c] - val,
+                    Some(c) => self.data[c as usize] - val,
                     None => self.n - val,
                 };
 
@@ -169,7 +169,7 @@ impl Perm {
     ///     vec![1, 2, 5],
     /// ]);
     /// ```
-    pub fn occurrences_in(&self, patt: &Perm) -> Vec<Vec<usize>> {
+    pub fn occurrences_in(&self, patt: &Perm) -> Vec<Vec<u8>> {
         let n = self.n;
         let m = patt.n;
         let pattern = patt.data.as_slice();
@@ -189,12 +189,12 @@ impl Perm {
         let pattern_details = self.get_pattern_details(); // Returns Vec<PattDetails>
 
         // Preallocate the occurrence vector
-        let mut occ_indices: Vec<usize>= vec![0; n];
+        let mut occ_indices: Vec<u8>= vec![0; n as usize];
 
         // Each stack item is (i: pattern index, k: self occ position)
-        fn occurrences(mut i: usize, k: usize, m: usize, n: usize, 
-            pattern_details: &Vec<PattDetails>, pattern: &[usize], occ_indices: &mut Vec<usize>,
-            res: &mut Vec<Vec<usize>>) {
+        fn occurrences(mut i: u8, k: u8, m: u8, n: u8, 
+            pattern_details: &Vec<PattDetails>, pattern: &[u8], occ_indices: &mut Vec<u8>,
+            res: &mut Vec<Vec<u8>>) {
 
             let mut elements_remaining = m - i;
             let elements_needed = n - k;
@@ -208,16 +208,16 @@ impl Perm {
                 left_ceil,
                 lower_bound,
                 upper_bound,
-            } = pattern_details[k];
+            } = pattern_details[k as usize];
 
             // Compute bounds for this level
             let lo = match left_floor {
-                Some(lfi) => pattern[occ_indices[lfi]] + lower_bound,
+                Some(lfi) => pattern[occ_indices[lfi as usize] as usize] + lower_bound,
                 None => lower_bound,
             };
 
             let hi = match left_ceil {
-                Some(lci) => pattern[occ_indices[lci]] - upper_bound,
+                Some(lci) => pattern[occ_indices[lci as usize] as usize] - upper_bound,
                 None => m - upper_bound,
             };
 
@@ -227,9 +227,9 @@ impl Perm {
                     return;
                 }
 
-                let val = pattern[i];
+                let val = pattern[i as usize];
                 if lo <= val && val <= hi {
-                    occ_indices[k] = i;
+                    occ_indices[k as usize] = i;
 
                     if k == n - 1 {
                         res.push(occ_indices.clone()); // Only clone when full match is found
@@ -247,7 +247,7 @@ impl Perm {
 
         results
     }
-    pub fn occurences_of(&self, patt: &Perm) -> Vec<Vec<usize>> {
+    pub fn occurences_of(&self, patt: &Perm) -> Vec<Vec<u8>> {
         patt.occurrences_in(self)
     }
     pub fn count_occurrences_in(&self, patt: &Perm) -> usize {
@@ -269,11 +269,11 @@ impl Perm {
         let pattern_details = self.get_pattern_details(); // Returns Vec<PattDetails>
 
         // Preallocate the occurrence vector
-        let mut occ_indices: Vec<usize>= vec![0; n];
+        let mut occ_indices: Vec<u8>= vec![0; n as usize];
 
         // Each stack item is (i: pattern index, k: self occ position)
-        fn occurrences(mut i: usize, k: usize, m: usize, n: usize, 
-            pattern_details: &Vec<PattDetails>, pattern: &[usize], occ_indices: &mut Vec<usize>,
+        fn occurrences(mut i: u8, k: u8, m: u8, n: u8, 
+            pattern_details: &Vec<PattDetails>, pattern: &[u8], occ_indices: &mut Vec<u8>,
             res: &mut usize) {
 
             let mut elements_remaining = m - i;
@@ -288,16 +288,16 @@ impl Perm {
                 left_ceil,
                 lower_bound,
                 upper_bound,
-            } = pattern_details[k];
+            } = pattern_details[k as usize];
 
             // Compute bounds for this level
             let lo = match left_floor {
-                Some(lfi) => pattern[occ_indices[lfi]] + lower_bound,
+                Some(lfi) => pattern[occ_indices[lfi as usize] as usize] + lower_bound,
                 None => lower_bound,
             };
 
             let hi = match left_ceil {
-                Some(lci) => pattern[occ_indices[lci]] - upper_bound,
+                Some(lci) => pattern[occ_indices[lci as usize] as usize] - upper_bound,
                 None => m - upper_bound,
             };
 
@@ -307,9 +307,9 @@ impl Perm {
                     return;
                 }
 
-                let val = pattern[i];
+                let val = pattern[i as usize];
                 if lo <= val && val <= hi {
-                    occ_indices[k] = i;
+                    occ_indices[k as usize] = i;
 
                     if k == n - 1 {
                         *res += 1; // Only clone when full match is found
@@ -331,7 +331,7 @@ impl Perm {
         patt.count_occurrences_in(self)
     }
     /// Counts the number of permutations of length n which have odd many
-    /// occurrences of `self` as a pattern, and those with even many occurrences.
+    /// occurrences of `self` as a pattern and those with even many occurrences.
     /// 
     /// # Examples
     ///
@@ -342,11 +342,11 @@ impl Perm {
     /// assert_eq!(even_count, 80);
     /// assert_eq!(odd_count, 40);
     /// ```
-    pub fn count_odd_even_occurrences(&self, n: usize) -> (usize, usize) {
+    pub fn count_odd_even_occurrences(&self, n: u8) -> (usize, usize) {
         let even_count = Perm::par_of_length(n)
             .filter(|perm| self.count_occurrences_in(perm) % 2 == 0)
             .count();
-        let total = (1..=n).product::<usize>();
+        let total = (1..=(n as usize)).product::<usize>();
         let odd_count = total - even_count;
 
         (even_count, odd_count)
